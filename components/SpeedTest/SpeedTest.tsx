@@ -1,8 +1,31 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import styles from './SpeedTest.module.scss';
 
-const SpeedTest = () => {
+interface SpeedContextType {
+    downloadSpeed: number | null;
+    uploadSpeed: number | null;
+    ping: number | null;
+    jitter: number | null;
+    ipInfo: { ip: string, isp: string } | null;
+    isTesting: boolean;
+    progress: number;
+    phase: 'idle' | 'ping' | 'download' | 'upload' | 'complete';
+    error: string | null;
+    runTest: () => void;
+}
+
+const SpeedContext = createContext<SpeedContextType | undefined>(undefined);
+
+const useSpeed = () => {
+    const context = useContext(SpeedContext);
+    if (!context) {
+        throw new Error('useSpeed must be used within a SpeedTest.Root');
+    }
+    return context;
+};
+
+const Root = ({ children, className }: { children: ReactNode; className?: string }) => {
     const [downloadSpeed, setDownloadSpeed] = useState<number | null>(null);
     const [uploadSpeed, setUploadSpeed] = useState<number | null>(null);
     const [ping, setPing] = useState<number | null>(null);
@@ -162,66 +185,110 @@ const SpeedTest = () => {
     };
 
     return (
-        <div className={styles.container}>
-            <h2>Internet Speed Test</h2>
-
-            {ipInfo && (
-                <div className={styles.networkInfo}>
-                    <div className={styles.infoItem}>
-                        <span className={styles.infoLabel}>ISP:</span>
-                        <span className={styles.infoValue}>{ipInfo.isp}</span>
-                    </div>
-                    <div className={styles.infoItem}>
-                        <span className={styles.infoLabel}>IP:</span>
-                        <span className={styles.infoValue}>{ipInfo.ip}</span>
-                    </div>
-                </div>
-            )}
-
-            <div className={styles.results}>
-                <div className={styles.metric}>
-                    <span className={styles.label}>Download</span>
-                    <span className={styles.value}>{downloadSpeed !== null ? downloadSpeed.toFixed(2) : '0.00'}</span>
-                    <span className={styles.unit}>Mbps</span>
-                </div>
-                <div className={styles.metric}>
-                    <span className={styles.label}>Upload</span>
-                    <span className={styles.value}>{uploadSpeed !== null ? uploadSpeed.toFixed(2) : '0.00'}</span>
-                    <span className={styles.unit}>Mbps</span>
-                </div>
-                <div className={styles.metric}>
-                    <span className={styles.label}>Ping</span>
-                    <span className={styles.value}>{ping !== null ? ping : '-'}</span>
-                    <span className={styles.unit}>ms</span>
-                </div>
-                <div className={styles.metric}>
-                    <span className={styles.label}>Jitter</span>
-                    <span className={styles.value}>{jitter !== null ? jitter : '-'}</span>
-                    <span className={styles.unit}>ms</span>
-                </div>
+        <SpeedContext.Provider value={{
+            downloadSpeed, uploadSpeed, ping, jitter, ipInfo,
+            isTesting, progress, phase, error, runTest
+        }}>
+            <div className={`${styles.container} ${className || ''}`}>
+                {children}
             </div>
+        </SpeedContext.Provider>
+    );
+};
 
-            <div className={styles.progressContainer}>
-                <div
-                    className={styles.progressBar}
-                    style={{ width: `${progress}%` }}
-                />
+const NetworkInfo = () => {
+    const { ipInfo } = useSpeed();
+    if (!ipInfo) return null;
+    return (
+        <div className={styles.networkInfo}>
+            <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>ISP:</span>
+                <span className={styles.infoValue}>{ipInfo.isp}</span>
             </div>
-
-            <div className={styles.controls}>
-                {!isTesting ? (
-                    <button onClick={runTest} className={styles.button}>Start Speed Test</button>
-                ) : (
-                    <button disabled className={`${styles.button} ${styles.disabled}`}>
-                        {phase === 'ping' ? 'Testing Ping...' :
-                            phase === 'download' ? 'Testing Download...' :
-                                phase === 'upload' ? 'Testing Upload...' : 'Testing...'}
-                    </button>
-                )}
+            <div className={styles.infoItem}>
+                <span className={styles.infoLabel}>IP:</span>
+                <span className={styles.infoValue}>{ipInfo.ip}</span>
             </div>
-            {error && <p className={styles.error}>{error}</p>}
         </div>
     );
 };
 
+const Results = () => {
+    const { downloadSpeed, uploadSpeed, ping, jitter } = useSpeed();
+    return (
+        <div className={styles.results}>
+            <div className={styles.metric}>
+                <span className={styles.label}>Download</span>
+                <span className={styles.value}>{downloadSpeed !== null ? downloadSpeed.toFixed(2) : '0.00'}</span>
+                <span className={styles.unit}>Mbps</span>
+            </div>
+            <div className={styles.metric}>
+                <span className={styles.label}>Upload</span>
+                <span className={styles.value}>{uploadSpeed !== null ? uploadSpeed.toFixed(2) : '0.00'}</span>
+                <span className={styles.unit}>Mbps</span>
+            </div>
+            <div className={styles.metric}>
+                <span className={styles.label}>Ping</span>
+                <span className={styles.value}>{ping !== null ? ping : '-'}</span>
+                <span className={styles.unit}>ms</span>
+            </div>
+            <div className={styles.metric}>
+                <span className={styles.label}>Jitter</span>
+                <span className={styles.value}>{jitter !== null ? jitter : '-'}</span>
+                <span className={styles.unit}>ms</span>
+            </div>
+        </div>
+    );
+};
+
+const Progress = () => {
+    const { progress } = useSpeed();
+    return (
+        <div className={styles.progressContainer}>
+            <div
+                className={styles.progressBar}
+                style={{ width: `${progress}%` }}
+            />
+        </div>
+    );
+};
+
+const Controls = () => {
+    const { isTesting, phase, runTest } = useSpeed();
+    return (
+        <div className={styles.controls}>
+            {!isTesting ? (
+                <button onClick={runTest} className={styles.button}>Start Speed Test</button>
+            ) : (
+                <button disabled className={`${styles.button} ${styles.disabled}`}>
+                    {phase === 'ping' ? 'Testing Ping...' :
+                        phase === 'download' ? 'Testing Download...' :
+                            phase === 'upload' ? 'Testing Upload...' : 'Testing...'}
+                </button>
+            )}
+        </div>
+    );
+};
+
+const ErrorMessage = () => {
+    const { error } = useSpeed();
+    if (!error) return null;
+    return <p className={styles.error}>{error}</p>;
+};
+
+const SpeedTest = Root as typeof Root & {
+    NetworkInfo: typeof NetworkInfo;
+    Results: typeof Results;
+    Progress: typeof Progress;
+    Controls: typeof Controls;
+    Error: typeof ErrorMessage;
+};
+
+SpeedTest.NetworkInfo = NetworkInfo;
+SpeedTest.Results = Results;
+SpeedTest.Progress = Progress;
+SpeedTest.Controls = Controls;
+SpeedTest.Error = ErrorMessage;
+
+export { NetworkInfo, Results, Progress, Controls, ErrorMessage as Error };
 export default SpeedTest;

@@ -1,8 +1,36 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, createContext, useContext, ReactNode } from 'react';
 import styles from './MicrophoneTest.module.scss';
 
-const MicrophoneTest = () => {
+interface MicrophoneContextType {
+    isRecording: boolean;
+    audioURL: string | null;
+    error: string | null;
+    deviceId: string;
+    devices: MediaDeviceInfo[];
+    setDeviceId: (id: string) => void;
+    echoCancellation: boolean;
+    setEchoCancellation: (val: boolean) => void;
+    noiseSuppression: boolean;
+    setNoiseSuppression: (val: boolean) => void;
+    autoGainControl: boolean;
+    setAutoGainControl: (val: boolean) => void;
+    startRecording: () => void;
+    stopRecording: () => void;
+    canvasRef: React.RefObject<HTMLCanvasElement | null>;
+}
+
+const MicrophoneContext = createContext<MicrophoneContextType | undefined>(undefined);
+
+const useMicrophone = () => {
+    const context = useContext(MicrophoneContext);
+    if (!context) {
+        throw new Error('useMicrophone must be used within a MicrophoneTest.Root');
+    }
+    return context;
+};
+
+const Root = ({ children, className }: { children: ReactNode; className?: string }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [audioURL, setAudioURL] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -175,78 +203,137 @@ const MicrophoneTest = () => {
     }, []);
 
     return (
-        <div className={styles.container}>
-            <h2>Microphone Test</h2>
-
-            <div className={styles.controlsWrapper}>
-                <div className={styles.selectWrapper}>
-                    <select
-                        value={deviceId}
-                        onChange={(e) => setDeviceId(e.target.value)}
-                        className={styles.select}
-                        disabled={isRecording}
-                    >
-                        {devices.map((device) => (
-                            <option key={device.deviceId} value={device.deviceId}>
-                                {device.label || `Microphone ${devices.indexOf(device) + 1}`}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className={styles.toggles}>
-                    <label className={styles.checkboxLabel}>
-                        <input
-                            type="checkbox"
-                            checked={echoCancellation}
-                            onChange={(e) => setEchoCancellation(e.target.checked)}
-                            disabled={isRecording}
-                            className={styles.checkbox}
-                        />
-                        Echo Cancellation
-                    </label>
-                    <label className={styles.checkboxLabel}>
-                        <input
-                            type="checkbox"
-                            checked={noiseSuppression}
-                            onChange={(e) => setNoiseSuppression(e.target.checked)}
-                            disabled={isRecording}
-                            className={styles.checkbox}
-                        />
-                        Noise Suppression
-                    </label>
-                    <label className={styles.checkboxLabel}>
-                        <input
-                            type="checkbox"
-                            checked={autoGainControl}
-                            onChange={(e) => setAutoGainControl(e.target.checked)}
-                            disabled={isRecording}
-                            className={styles.checkbox}
-                        />
-                        Auto Gain Control
-                    </label>
-                </div>
+        <MicrophoneContext.Provider value={{
+            isRecording, audioURL, error, deviceId, devices, setDeviceId,
+            echoCancellation, setEchoCancellation,
+            noiseSuppression, setNoiseSuppression,
+            autoGainControl, setAutoGainControl,
+            startRecording, stopRecording, canvasRef
+        }}>
+            <div className={`${styles.container} ${className || ''}`}>
+                {children}
             </div>
+        </MicrophoneContext.Provider>
+    );
+};
 
-            <div className={styles.visualizerContainer}>
-                <canvas ref={canvasRef} width="300" height="60" className={styles.canvas}></canvas>
-            </div>
-
-            <div className={styles.controls}>
-                {!isRecording ? (
-                    <button onClick={startRecording} className={styles.button}>Record</button>
-                ) : (
-                    <button onClick={stopRecording} className={`${styles.button} ${styles.stop}`}>Stop</button>
-                )}
-            </div>
-            {audioURL && (
-                <div className={styles.playback}>
-                    <audio controls src={audioURL} className={styles.audio} />
-                </div>
-            )}
-            {error && <p className={styles.error}>{error}</p>}
+const DeviceSelect = () => {
+    const { deviceId, setDeviceId, devices, isRecording } = useMicrophone();
+    return (
+        <div className={styles.selectWrapper}>
+            <select
+                value={deviceId}
+                onChange={(e) => setDeviceId(e.target.value)}
+                className={styles.select}
+                disabled={isRecording}
+            >
+                {devices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Microphone ${devices.indexOf(device) + 1}`}
+                    </option>
+                ))}
+            </select>
         </div>
     );
 };
 
+const Toggles = () => {
+    const {
+        echoCancellation, setEchoCancellation,
+        noiseSuppression, setNoiseSuppression,
+        autoGainControl, setAutoGainControl,
+        isRecording
+    } = useMicrophone();
+
+    return (
+        <div className={styles.toggles}>
+            <label className={styles.checkboxLabel}>
+                <input
+                    type="checkbox"
+                    checked={echoCancellation}
+                    onChange={(e) => setEchoCancellation(e.target.checked)}
+                    disabled={isRecording}
+                    className={styles.checkbox}
+                />
+                Echo Cancellation
+            </label>
+            <label className={styles.checkboxLabel}>
+                <input
+                    type="checkbox"
+                    checked={noiseSuppression}
+                    onChange={(e) => setNoiseSuppression(e.target.checked)}
+                    disabled={isRecording}
+                    className={styles.checkbox}
+                />
+                Noise Suppression
+            </label>
+            <label className={styles.checkboxLabel}>
+                <input
+                    type="checkbox"
+                    checked={autoGainControl}
+                    onChange={(e) => setAutoGainControl(e.target.checked)}
+                    disabled={isRecording}
+                    className={styles.checkbox}
+                />
+                Auto Gain Control
+            </label>
+        </div>
+    );
+};
+
+const Visualizer = () => {
+    const { canvasRef } = useMicrophone();
+    return (
+        <div className={styles.visualizerContainer}>
+            <canvas ref={canvasRef} width="300" height="60" className={styles.canvas}></canvas>
+        </div>
+    );
+};
+
+const Controls = () => {
+    const { isRecording, startRecording, stopRecording } = useMicrophone();
+    return (
+        <div className={styles.controls}>
+            {!isRecording ? (
+                <button onClick={startRecording} className={styles.button}>Record</button>
+            ) : (
+                <button onClick={stopRecording} className={`${styles.button} ${styles.stop}`}>Stop</button>
+            )}
+        </div>
+    );
+};
+
+const Playback = () => {
+    const { audioURL } = useMicrophone();
+    if (!audioURL) return null;
+    return (
+        <div className={styles.playback}>
+            <audio controls src={audioURL} className={styles.audio} />
+        </div>
+    );
+};
+
+const ErrorMessage = () => {
+    const { error } = useMicrophone();
+    if (!error) return null;
+    return <p className={styles.error}>{error}</p>;
+};
+
+const MicrophoneTest = Root as typeof Root & {
+    DeviceSelect: typeof DeviceSelect;
+    Toggles: typeof Toggles;
+    Visualizer: typeof Visualizer;
+    Controls: typeof Controls;
+    Playback: typeof Playback;
+    Error: typeof ErrorMessage;
+};
+
+MicrophoneTest.DeviceSelect = DeviceSelect;
+MicrophoneTest.Toggles = Toggles;
+MicrophoneTest.Visualizer = Visualizer;
+MicrophoneTest.Controls = Controls;
+MicrophoneTest.Playback = Playback;
+MicrophoneTest.Error = ErrorMessage;
+
+export { DeviceSelect, Toggles, Visualizer, Controls, Playback, ErrorMessage as Error };
 export default MicrophoneTest;

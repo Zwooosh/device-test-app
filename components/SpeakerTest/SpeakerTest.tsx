@@ -1,8 +1,30 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, createContext, useContext, ReactNode } from 'react';
 import styles from './SpeakerTest.module.scss';
 
-const SpeakerTest = () => {
+interface SpeakerContextType {
+    isPlaying: boolean;
+    volume: number;
+    setVolume: (volume: number) => void;
+    deviceId: string;
+    devices: MediaDeviceInfo[];
+    setDeviceId: (id: string) => void;
+    startSound: () => void;
+    stopSound: () => void;
+    handleVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
+const SpeakerContext = createContext<SpeakerContextType | undefined>(undefined);
+
+const useSpeaker = () => {
+    const context = useContext(SpeakerContext);
+    if (!context) {
+        throw new Error('useSpeaker must be used within a SpeakerTest.Root');
+    }
+    return context;
+};
+
+const Root = ({ children, className }: { children: ReactNode; className?: string }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.5);
     const [deviceId, setDeviceId] = useState<string>('');
@@ -106,53 +128,91 @@ const SpeakerTest = () => {
     };
 
     return (
-        <div className={styles.container}>
-            <h2>Speaker Test</h2>
-
-            <div className={styles.selectWrapper}>
-                <select
-                    value={deviceId}
-                    onChange={(e) => setDeviceId(e.target.value)}
-                    className={styles.select}
-                    disabled={isPlaying}
-                >
-                    {devices.map((device) => (
-                        <option key={device.deviceId} value={device.deviceId}>
-                            {device.label || `Speaker ${devices.indexOf(device) + 1}`}
-                        </option>
-                    ))}
-                </select>
+        <SpeakerContext.Provider value={{
+            isPlaying, volume, setVolume, deviceId, devices, setDeviceId,
+            startSound, stopSound, handleVolumeChange
+        }}>
+            <div className={`${styles.container} ${className || ''}`}>
+                {children}
             </div>
+        </SpeakerContext.Provider>
+    );
+};
 
-            <div className={styles.iconWrapper}>
-                <svg className={`${styles.icon} ${isPlaying ? styles.playing : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" className={styles.waves}></path>
-                </svg>
-            </div>
-            <div className={styles.controls}>
-                <button onClick={isPlaying ? stopSound : startSound} className={styles.button}>
-                    {isPlaying ? 'Stop Sound' : 'Play Test Sound'}
-                </button>
-                <div className={styles.volumeControl}>
-                    <label htmlFor="volume">Volume</label>
-                    <div className={styles.sliderWrapper}>
-                        <input
-                            type="range"
-                            id="volume"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={volume}
-                            onChange={handleVolumeChange}
-                            className={styles.slider}
-                        />
-                        <span className={styles.volumeValue}>{Math.round(volume * 100)}%</span>
-                    </div>
-                </div>
+const DeviceSelect = () => {
+    const { deviceId, setDeviceId, devices, isPlaying } = useSpeaker();
+    return (
+        <div className={styles.selectWrapper}>
+            <select
+                value={deviceId}
+                onChange={(e) => setDeviceId(e.target.value)}
+                className={styles.select}
+                disabled={isPlaying}
+            >
+                {devices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `Speaker ${devices.indexOf(device) + 1}`}
+                    </option>
+                ))}
+            </select>
+        </div>
+    );
+};
+
+const Visualizer = () => {
+    const { isPlaying } = useSpeaker();
+    return (
+        <div className={styles.iconWrapper}>
+            <svg className={`${styles.icon} ${isPlaying ? styles.playing : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" className={styles.waves}></path>
+            </svg>
+        </div>
+    );
+};
+
+const Controls = () => {
+    const { isPlaying, startSound, stopSound } = useSpeaker();
+    return (
+        <button onClick={isPlaying ? stopSound : startSound} className={styles.button}>
+            {isPlaying ? 'Stop Sound' : 'Play Test Sound'}
+        </button>
+    );
+};
+
+const Volume = () => {
+    const { volume, handleVolumeChange } = useSpeaker();
+    return (
+        <div className={styles.volumeControl}>
+            <label htmlFor="volume">Volume</label>
+            <div className={styles.sliderWrapper}>
+                <input
+                    type="range"
+                    id="volume"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    className={styles.slider}
+                />
+                <span className={styles.volumeValue}>{Math.round(volume * 100)}%</span>
             </div>
         </div>
     );
 };
 
+const SpeakerTest = Root as typeof Root & {
+    DeviceSelect: typeof DeviceSelect;
+    Visualizer: typeof Visualizer;
+    Controls: typeof Controls;
+    Volume: typeof Volume;
+};
+
+SpeakerTest.DeviceSelect = DeviceSelect;
+SpeakerTest.Visualizer = Visualizer;
+SpeakerTest.Controls = Controls;
+SpeakerTest.Volume = Volume;
+
+export { DeviceSelect, Visualizer, Controls, Volume };
 export default SpeakerTest;

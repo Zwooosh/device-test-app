@@ -1,8 +1,29 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, createContext, useContext, ReactNode } from 'react';
 import styles from './WebcamTest.module.scss';
 
-const WebcamTest = () => {
+interface WebcamContextType {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  isActive: boolean;
+  error: string | null;
+  deviceId: string;
+  devices: MediaDeviceInfo[];
+  setDeviceId: (id: string) => void;
+  startCamera: () => void;
+  stopCamera: () => void;
+}
+
+const WebcamContext = createContext<WebcamContextType | undefined>(undefined);
+
+const useWebcam = () => {
+  const context = useContext(WebcamContext);
+  if (!context) {
+    throw new Error('useWebcam must be used within a WebcamTest.Root');
+  }
+  return context;
+};
+
+const Root = ({ children, className }: { children: ReactNode; className?: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,38 +85,74 @@ const WebcamTest = () => {
   }, []);
 
   return (
-    <div className={styles.container}>
-      <h2>Webcam Test</h2>
+    <WebcamContext.Provider value={{ videoRef, isActive, error, deviceId, devices, setDeviceId, startCamera, stopCamera }}>
+      <div className={`${styles.container} ${className || ''}`}>
+        {children}
+      </div>
+    </WebcamContext.Provider>
+  );
+};
 
-      <div className={styles.selectWrapper}>
-        <select
-          value={deviceId}
-          onChange={(e) => setDeviceId(e.target.value)}
-          className={styles.select}
-          disabled={isActive}
-        >
-          {devices.map((device) => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label || `Camera ${devices.indexOf(device) + 1}`}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className={styles.videoWrapper}>
-        <video ref={videoRef} autoPlay playsInline muted className={styles.video} />
-        {!isActive && <div className={styles.placeholder}>Camera Off</div>}
-      </div>
-      <div className={styles.controls}>
-        {!isActive ? (
-          <button onClick={startCamera} className={styles.button}>Start Camera</button>
-        ) : (
-          <button onClick={stopCamera} className={`${styles.button} ${styles.stop}`}>Stop Camera</button>
-        )}
-      </div>
-      {error && <p className={styles.error}>{error}</p>}
+const DeviceSelect = () => {
+  const { deviceId, setDeviceId, devices, isActive } = useWebcam();
+  return (
+    <div className={styles.selectWrapper}>
+      <select
+        value={deviceId}
+        onChange={(e) => setDeviceId(e.target.value)}
+        className={styles.select}
+        disabled={isActive}
+      >
+        {devices.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label || `Camera ${devices.indexOf(device) + 1}`}
+          </option>
+        ))}
+      </select>
     </div>
   );
 };
 
+const Video = () => {
+  const { videoRef, isActive } = useWebcam();
+  return (
+    <div className={styles.videoWrapper}>
+      <video ref={videoRef} autoPlay playsInline muted className={styles.video} />
+      {!isActive && <div className={styles.placeholder}>Camera Off</div>}
+    </div>
+  );
+};
+
+const Controls = () => {
+  const { isActive, startCamera, stopCamera } = useWebcam();
+  return (
+    <div className={styles.controls}>
+      {!isActive ? (
+        <button onClick={startCamera} className={styles.button}>Start Camera</button>
+      ) : (
+        <button onClick={stopCamera} className={`${styles.button} ${styles.stop}`}>Stop Camera</button>
+      )}
+    </div>
+  );
+};
+
+const ErrorMessage = () => {
+  const { error } = useWebcam();
+  if (!error) return null;
+  return <p className={styles.error}>{error}</p>;
+};
+
+const WebcamTest = Root as typeof Root & {
+  DeviceSelect: typeof DeviceSelect;
+  Video: typeof Video;
+  Controls: typeof Controls;
+  Error: typeof ErrorMessage;
+};
+
+WebcamTest.DeviceSelect = DeviceSelect;
+WebcamTest.Video = Video;
+WebcamTest.Controls = Controls;
+WebcamTest.Error = ErrorMessage;
+
+export { DeviceSelect, Video, Controls, ErrorMessage as Error };
 export default WebcamTest;
