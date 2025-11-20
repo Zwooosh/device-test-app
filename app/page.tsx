@@ -26,6 +26,7 @@ import SpeakerTest, {
   Controls as SpeakerControls,
   Volume as SpeakerVolume
 } from '@/components/SpeakerTest/SpeakerTest';
+import GlobalControls from '@/components/GlobalControls/GlobalControls';
 import styles from './page.module.scss';
 
 export default function Home() {
@@ -35,6 +36,8 @@ export default function Home() {
         <h1>Device Test Lab</h1>
         <p>Test your webcam, microphone, internet speed, and speakers.</p>
       </div>
+
+      <GlobalControls />
 
       <div className={styles.grid}>
         <WebcamTest>
